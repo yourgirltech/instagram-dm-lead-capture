@@ -1,0 +1,504 @@
+{
+  "name": "Koret - IG DM Auto-Reply + Lead Capture",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "koret-ig-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "86289d05-53f5-4c65-8e11-981c8b62a70a",
+      "name": "Webhook Verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        80
+      ],
+      "webhookId": "f9f83f51-9f82-4816-98d8-4d43f49d711c"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "={{ $env.KORET_IG_VERIFY_TOKEN }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6b49b62a-665e-444c-b96b-1e104645f346",
+      "name": "Token Matches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {}
+      },
+      "id": "82fa20cb-fdfb-4990-b46d-73d9efc6f2ce",
+      "name": "Respond With Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Forbidden",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "3cf1df9c-2399-43fd-8654-bc8f16c0720d",
+      "name": "Reject",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "koret-ig-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "aa64e865-cc5a-4ba1-8510-fe845a4ffa50",
+      "name": "IG Message Events (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        352
+      ],
+      "webhookId": "8e1ae110-b529-4e25-a579-bf966d23a018"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "EVENT_RECEIVED",
+        "options": {}
+      },
+      "id": "efe4b6a3-8218-4f17-9570-094a9155e2ee",
+      "name": "Ack Meta (200 OK)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull sender id + message text out of the Meta webhook payload\nconst body = $input.first().json.body;\nconst entry = body.entry?.[0];\nconst messaging = entry?.messaging?.[0];\n\nif (!messaging || !messaging.message || messaging.message.is_echo) {\n  return []; // ignore echoes / non-message events (reads, reactions, etc.)\n}\n\nreturn [{\n  json: {\n    sender_id: messaging.sender.id,\n    recipient_id: messaging.recipient.id,\n    text: (messaging.message.text || '').trim(),\n    timestamp: messaging.timestamp\n  }\n}];"
+      },
+      "id": "ee8e33c6-66db-43fb-aa8b-f6233df39e02",
+      "name": "Parse Message Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simple keyword router. Add/edit phrases per Koret's most common DM questions.\nconst text = ($json.text || '').toLowerCase();\n\nconst rules = [\n  { keywords: ['price', 'cost', 'how much'], intent: 'pricing' },\n  { keywords: ['location', 'where', 'address'], intent: 'location' },\n  { keywords: ['hours', 'open', 'closing'], intent: 'hours' }\n];\n\nlet intent = 'unmatched';\nfor (const rule of rules) {\n  if (rule.keywords.some(k => text.includes(k))) {\n    intent = rule.intent;\n    break;\n  }\n}\n\nreturn [{ json: { ...$json, intent } }];"
+      },
+      "id": "c61b5def-8666-454e-8d3f-cca41480276f",
+      "name": "Match Keywords",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "pricing",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "location",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "hours",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c8efa3c8-8ea8-4c8d-9ec9-61d805fa00cd",
+      "name": "Route By Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        224,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, reply_text: 'REPLACE ME: pricing answer for Koret' } }];"
+      },
+      "id": "3569a762-f321-44ac-8358-da983c835478",
+      "name": "Reply: Pricing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, reply_text: 'REPLACE ME: location answer for Koret' } }];"
+      },
+      "id": "034d3623-566f-4289-a703-e279ff778e98",
+      "name": "Reply: Location",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, reply_text: 'REPLACE ME: hours answer for Koret' } }];"
+      },
+      "id": "c88ba13b-00e1-4be6-88f3-2e17ba6dd25b",
+      "name": "Reply: Hours",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "requestOptions": {}
+      },
+      "id": "d6daedf6-1cee-4beb-b701-30560e00b1a5",
+      "name": "LLM: Fallback Reply",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        448,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, reply_text: $json.message?.content || $json.reply_text } }];"
+      },
+      "id": "cf257039-58d1-4f9b-800d-03c069c06948",
+      "name": "Normalize Reply Field",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.recipient_id }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $env.KORET_IG_PAGE_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ recipient: { id: $json.sender_id }, message: { text: $json.reply_text } }) }}",
+        "options": {}
+      },
+      "id": "0fb6a7ca-fc23-4aa8-92f0-a7b2547f95e5",
+      "name": "Send IG Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "insert"
+      },
+      "id": "0743c0f5-99ae-415b-b042-fdd4064d7ab0",
+      "name": "Log Lead to Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1104,
+        512
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Token Matches?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Matches?": {
+      "main": [
+        [
+          {
+            "node": "Respond With Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Message Events (POST)": {
+      "main": [
+        [
+          {
+            "node": "Ack Meta (200 OK)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Parse Message Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Message Event": {
+      "main": [
+        [
+          {
+            "node": "Match Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Keywords": {
+      "main": [
+        [
+          {
+            "node": "Route By Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route By Intent": {
+      "main": [
+        [
+          {
+            "node": "Reply: Pricing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: Location",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply: Pricing": {
+      "main": [
+        [
+          {
+            "node": "Normalize Reply Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply: Location": {
+      "main": [
+        [
+          {
+            "node": "Normalize Reply Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply: Hours": {
+      "main": [
+        [
+          {
+            "node": "Normalize Reply Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM: Fallback Reply": {
+      "main": [
+        [
+          {
+            "node": "Normalize Reply Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Reply Field": {
+      "main": [
+        [
+          {
+            "node": "Send IG Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send IG Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Lead to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "pinData": {},
+  "active": false
+}
