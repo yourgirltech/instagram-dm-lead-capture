@@ -1,8 +1,6 @@
 # Instagram DM Auto-Reply + Lead Capture
 
-An n8n workflow that answers Instagram Direct Messages for a business account and logs every conversation as a lead in Supabase. Built for a client's Instagram inbox: common questions get an instant, consistent answer, and nothing that arrives in DMs gets lost.
-
-> **In production for a client.** The live system runs on the client's own domain and isn't linked here. This repository is the build record: the full source, with client data, credentials and URLs removed.
+An n8n workflow that answers Instagram Direct Messages for a business account and logs every conversation as a lead in Supabase. Built for a business Instagram inbox: common questions get an instant, consistent answer, and nothing that arrives in DMs gets lost.
 
 ## How it works
 
